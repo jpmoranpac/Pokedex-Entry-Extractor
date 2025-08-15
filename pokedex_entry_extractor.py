@@ -18,6 +18,30 @@ def fetch_csv(url):
     resp.raise_for_status()
     return StringIO(resp.text)
 
+def word_similarity(text1, text2):
+    """Return the proportion of words in the shorter text that are also in the longer one."""
+    words1 = text1.lower().split()
+    words2 = text2.lower().split()
+    set1, set2 = set(words1), set(words2)
+    common = len(set1 & set2)
+    shorter_len = min(len(set1), len(set2))
+    if shorter_len == 0:
+        return 0
+    return common / shorter_len
+
+def remove_near_duplicates(texts, threshold=0.4):
+    """Given a list of texts, remove near duplicates based on word overlap."""
+    unique_texts = []
+    for text in texts:
+        is_duplicate = False
+        for kept in unique_texts:
+            if word_similarity(text, kept) >= threshold:
+                is_duplicate = True
+                break
+        if not is_duplicate:
+            unique_texts.append(text)
+    return unique_texts
+
 def extract_all_species_with_names(output_path):
     # --- Step 1: Load species names ---
     species_names = {}
@@ -37,7 +61,11 @@ def extract_all_species_with_names(output_path):
             text = row["flavor_text"].replace("\n", " ").replace("\f", " ").strip()
             species_texts[species_id].add(text)
 
-    # --- Step 3: Write combined output ---
+    # --- Step 3: Remove near duplicates ---
+    for species_id in species_texts:
+        species_texts[species_id] = remove_near_duplicates(species_texts[species_id], threshold=0.8)
+
+    # --- Step 4: Write combined output ---
     with open(output_path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh)
         writer.writerow(["species_id", "name", "flavor_texts"])
